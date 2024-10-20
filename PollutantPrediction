@@ -1,0 +1,200 @@
+import pandas as pd
+import numpy as np
+import seaborn as sb
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+
+
+# In[2]:
+
+
+newdat=pd.read_csv("dat.csv",parse_dates=["Date"])
+data1=pd.read_csv("dat.csv",parse_dates=["Date"])
+data1
+
+
+# In[3]:
+
+
+for col in data1.columns:
+    print(f'{col}: {data1[col].isnull().sum()}')
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[4]:
+
+
+for column in newdat.columns:
+    data1[column]=data1[column].fillna(method="ffill")
+data1
+
+
+# In[5]:
+
+
+for column in newdat.columns:
+    print(f'{column}: {newdat[column].isnull().sum()}')
+newdat=data1[["no2","so2","no","co"]].copy()
+
+
+# In[6]:
+
+
+for column in newdat.columns:
+    plt.figure(figsize=(5, 5))
+    sb.boxplot(y=newdat[column])  
+    plt.title(f'Box Plot of {column.upper()}') 
+    plt.grid()
+    plt.show()
+
+
+# In[7]:
+
+
+for column in newdat.columns:
+    '''q1=newdat[column].quantile(0.25)
+    q3=newdat[column].quantile(0.75)
+    iqr=q3-q1
+    l=q1-1.5*iqr
+    u=q3+1.5*iqr    
+    newdat[column].clip(lower=l,upper=u)
+    '''
+    lower_percentile = newdat[column].quantile(0.01)  # 1st percentile
+    upper_percentile = newdat[column].quantile(0.99)  # 99th percentile
+
+# Remove the outliers
+    cleaned_data = newdat[(newdat[column] >= lower_percentile) & (newdat[column] <= upper_percentile)]
+
+
+# In[8]:
+
+
+for column in newdat.columns:
+    plt.figure(figsize=(5, 5))
+    RNG=np.random.rand(3,)
+    plt.plot(data1['Date'], newdat[column],linestyle='-', color=RNG, label=f"{column}")
+    plt.title("plot of"+f' {column} levels')
+    plt.xlabel('Date')
+    plt.ylabel("concentration of"+ f" {column}")
+    plt.xticks(rotation=90)  
+    plt.grid()               
+    plt.legend()    
+
+
+# In[9]:
+
+
+newdat
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[10]:
+
+
+newdat = newdat.assign(date=data1['Date'])
+newdat = newdat.assign(temp=data1['tem'])
+newdat = newdat.assign(rh=data1['rh'])
+correlation_mat = data1.corr()
+plt.figure(figsize=(6, 6))
+sb.heatmap(correlation_mat, annot=True, cmap='coolwarm', fmt=".2f")  
+plt.title("Heatmap for understanding the relationship") 
+plt.show()
+
+
+# In[11]:
+
+
+newdat
+
+
+# In[14]:
+
+
+# User input
+temp = float(input("Enter the temperature: "))
+rh = float(input("Enter the relative humidity: "))
+so2 = float(input("Enter the SO2 concentration: "))
+no = float(input("Enter the NO concentration: "))
+no2 = float(input("Enter the NO2 concentration: "))
+
+# Prepare your 'newdat' DataFrame (assuming it is already defined)
+newdat['Date_int'] = newdat['date'].astype('int64') // 10**9  # Convert date to int64 format
+
+# Prepare feature and target datasets for CO
+features = ["Date_int", "temp", "rh", "so2", "no", "no2"]
+X = newdat[features]
+y_co = newdat[["co"]]
+
+# Step 3: Normalize the features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Step 4: Train the model for CO
+model_co = LinearRegression()
+
+# Split data for training and testing
+X_train_co, X_test_co, y_train_co, y_test_co = train_test_split(X_scaled, y_co, test_size=0.3, shuffle=False)
+model_co.fit(X_train_co, y_train_co)
+
+# Step 5: Create future dates for prediction
+future_dates = pd.date_range(start="2023-04-01", periods=10, freq='H')
+future_dates_int = future_dates.astype('int64') // 10**9  # Convert to int64 format
+
+# Create a DataFrame for future data
+future_data = pd.DataFrame({
+    'Date_int': future_dates_int,
+    'temp': [temp] * len(future_dates),  # Ensuring the length matches future_dates
+    'rh': [rh] * len(future_dates),
+    'so2': [so2] * len(future_dates),
+    'no': [no] * len(future_dates),
+    'no2': [no2] * len(future_dates)
+})
+
+# Normalize future data
+future_data_scaled = scaler.transform(future_data[features])
+
+# Step 6: Predict CO concentrations
+future_data['predicted_co'] = model_co.predict(future_data_scaled)
+
+# Step 7: Plot results
+plt.figure(figsize=(10, 6))
+
+# Plotting actual CO vs predicted CO
+plt.plot(newdat['date'], newdat['co'], label='Actual CO', color='blue', alpha=0.7)
+plt.plot(future_dates, future_data['predicted_co'], label='Predicted CO', color='orange', marker='o')
+plt.title('CO Concentration Prediction')
+plt.xlabel('Date')
+plt.ylabel('CO Concentration')
+plt.xticks(rotation=45)
+plt.legend()
+plt.grid()
+plt.tight_layout()
+plt.show()
+
+# Output predictions for review
+print(future_data[['Date_int', 'predicted_co']])
